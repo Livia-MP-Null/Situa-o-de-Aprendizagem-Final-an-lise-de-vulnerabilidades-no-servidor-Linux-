@@ -868,6 +868,197 @@ sysctl -p /etc/sysctl.d/99-security-hardening.conf
 ```
 
 ---
+# 🛡️ Plano de Mitigação e Evolução da Segurança da InovaTech Soluções
+
+## Objetivo
+
+Além das correções técnicas apresentadas para cada vulnerabilidade, a InovaTech Soluções deverá implementar medidas permanentes de segurança para reduzir riscos futuros, proteger os dados corporativos e garantir conformidade com a LGPD.
+
+---
+
+# 🔥 Implementação de Firewall Corporativo
+
+Atualmente a empresa não possui uma política de firewall robusta.
+
+## Ações recomendadas
+
+- Implementar o UFW (Uncomplicated Firewall) no servidor Linux.
+- Bloquear todas as portas não utilizadas.
+- Permitir apenas serviços essenciais:
+  - SSH (22)
+  - Samba (445 e 139)
+  - DNS (53), caso necessário.
+- Restringir acesso administrativo apenas à rede interna ou VPN.
+- Registrar tentativas de acesso negadas.
+
+## Benefícios
+
+- Redução da superfície de ataque.
+- Bloqueio de conexões não autorizadas.
+- Maior controle sobre o tráfego da rede.
+
+---
+
+# 🌐 Implantação de VPN para Trabalho Remoto
+
+Atualmente os colaboradores acessam recursos internos sem um método seguro definido.
+
+## Ações recomendadas
+
+- Implantar uma VPN utilizando WireGuard ou OpenVPN.
+- Exigir autenticação individual para cada colaborador.
+- Permitir acesso ao servidor somente através da VPN.
+- Bloquear acessos externos diretos aos serviços internos.
+
+## Benefícios
+
+- Criptografia do tráfego.
+- Proteção contra interceptação de dados.
+- Maior segurança para usuários remotos.
+
+---
+
+# 📋 Criação da Política de Segurança da Informação (PSI)
+
+A empresa ainda não possui uma PSI formal.
+
+## Ações recomendadas
+
+Definir regras para:
+
+- Criação de senhas fortes.
+- Controle de acesso aos sistemas.
+- Uso aceitável dos equipamentos corporativos.
+- Compartilhamento de arquivos.
+- Backup e recuperação de dados.
+- Resposta a incidentes de segurança.
+- Desligamento e remoção de acessos de ex-colaboradores.
+
+## Benefícios
+
+- Padronização dos processos.
+- Maior conscientização dos usuários.
+- Conformidade com a LGPD.
+
+---
+
+# 👤 Controle de Acesso e Privilégios
+
+## Ações recomendadas
+
+- Aplicar o princípio do menor privilégio.
+- Remover usuários inativos.
+- Revisar permissões de grupos Linux periodicamente.
+- Restringir o uso de sudo apenas para administradores.
+- Utilizar autenticação multifator (MFA) para contas administrativas.
+
+## Benefícios
+
+- Menor risco de escalonamento de privilégios.
+- Redução de impactos causados por contas comprometidas.
+
+---
+
+# 📊 Monitoramento e Auditoria
+
+## Ações recomendadas
+
+- Utilizar Auditd para monitorar alterações críticas.
+- Centralizar logs do sistema.
+- Monitorar tentativas de login.
+- Criar alertas para atividades suspeitas.
+- Revisar logs semanalmente.
+
+## Benefícios
+
+- Detecção rápida de incidentes.
+- Rastreabilidade de ações realizadas no servidor.
+
+---
+
+# 💾 Política de Backup
+
+## Ações recomendadas
+
+- Realizar backups automáticos diários.
+- Armazenar cópias em local diferente do servidor principal.
+- Testar restaurações periodicamente.
+- Manter histórico de versões.
+
+## Benefícios
+
+- Recuperação rápida após falhas ou ataques.
+- Proteção contra perda de dados.
+
+---
+
+# 🔄 Gestão de Atualizações
+
+## Ações recomendadas
+
+- Atualizar o sistema operacional regularmente.
+- Aplicar patches de segurança assim que disponibilizados.
+- Manter cronograma mensal de atualização.
+- Testar atualizações em ambiente de homologação antes da produção.
+
+## Benefícios
+
+- Redução da exposição a vulnerabilidades conhecidas.
+- Maior estabilidade do ambiente.
+
+---
+
+# 🐳 Segurança de Contêineres
+
+Caso a empresa utilize Docker:
+
+## Ações recomendadas
+
+- Utilizar imagens oficiais.
+- Evitar execução de contêineres como root.
+- Aplicar perfis Seccomp e AppArmor.
+- Atualizar imagens regularmente.
+- Limitar permissões dos contêineres.
+
+## Benefícios
+
+- Redução do risco de escape de contêiner.
+- Isolamento mais eficiente dos serviços.
+
+---
+
+# 🎓 Capacitação dos Colaboradores
+
+## Ações recomendadas
+
+- Treinamentos semestrais sobre segurança da informação.
+- Orientação sobre phishing e engenharia social.
+- Boas práticas para senhas e acesso remoto.
+- Conscientização sobre LGPD.
+
+## Benefícios
+
+- Redução de falhas humanas.
+- Maior maturidade de segurança na empresa.
+
+---
+
+# 📈 Evolução da Infraestrutura de Segurança
+
+Como evolução do ambiente Linux da InovaTech, recomenda-se:
+
+1. Implantação de firewall corporativo.
+2. Implantação de VPN para acesso remoto.
+3. Formalização da Política de Segurança da Informação (PSI).
+4. Monitoramento contínuo com Auditd.
+5. Implementação de backups automatizados.
+6. Atualização periódica do kernel Linux.
+7. Uso de AppArmor em modo **Enforce**.
+8. Aplicação do princípio do menor privilégio.
+9. Utilização de autenticação multifator (MFA).
+10. Realização de auditorias de segurança trimestrais.
+
+---
 
 ## 9. Tabela Resumo
 

@@ -1,8 +1,9 @@
-# 🔐 Análise de Vulnerabilidades — Servidor Linux 
+# 🔐 Análise de  Vulnerabilidades Críticas Identificadas no Linux
+
 
 ---
 
-## 🚨 Vulnerabilidades Críticas Identificadas
+ 
 
 ---
 
@@ -32,7 +33,7 @@ $ grep -r "CVE-2026-43500" /var/log/dpkg.log 2>/dev/null || echo "[ALERTA] Sem e
 [ALERTA] Sem evidência de patch
 ```
 
-#### Impacto para a InovaTech
+#### Impacto
 
 - Qualquer usuário local (inclusive ex-colaboradores com conta ativa) pode obter acesso root
 - Uma vez com root, o atacante pode exfiltrar dados protegidos pela LGPD, destruir backups ou instalar rootkits
@@ -77,7 +78,7 @@ $ cat /proc/$(pgrep sshd)/maps | grep -v "r--p\|---p" | head -20
 $ ausearch -k privesc --start today
 ```
 
-#### Impacto para a InovaTech
+#### Impacto 
 
 - A modificação de binários em memória **contorna soluções de detecção baseadas em hash de arquivo**
 - Pode ser combinada com acesso remoto legítimo para escalonamento silencioso de privilégios
@@ -133,7 +134,7 @@ kernel.unprivileged_userns_clone = 1
 $ ls -la /proc/*/ns/pid 2>/dev/null | grep -v "1 root" | head -10
 ```
 
-#### Impacto para a InovaTech
+#### Impacto 
 
 - Escalamento de root local com **taxa de sucesso superior a 95%** em kernels não patcheados
 - **Escape de contêiner:** se a InovaTech isola serviços via Docker, todos podem ser comprometidos a partir de um único contêiner vulnerável
@@ -238,82 +239,497 @@ $ tail -f /var/log/kern.log | grep -E "apparmor|DENIED|ALLOWED"
 
 ---
 
-## 📊 Tabela Resumo — Vulnerabilidades Não Corrigidas
 
-Consolidação das vulnerabilidades analisadas + tópicos adicionais que comprometem empresas com servidores Linux de dados em CLI.
-
-| CVE / Nome | Subsistema Afetado | Severidade | Tipo de Ataque | Impacto Corporativo | Status do Patch |
-|---|---|:---:|---|---|---|
-| `CVE-2026-43500` · Dirty Frag | RxRPC / kernel networking | 🔴 CRÍTICO | Escalonamento local → root | Acesso root por usuário local; exfiltração LGPD | PoC pública; patch incompleto upstream |
-| `CVE-2026-46300` · Fragnesia | Page cache / memory mgmt | 🔴 CRÍTICO | Escrita arbitrária em memória | Modificação silenciosa de binários privilegiados; root indetectável | Sem patch oficial; mitigações parciais |
-| `CVE-2026-31431` · Copy Fail | `copy_to_user` / syscall layer | 🔴 CRÍTICO | Root local + escape de contêiner | Comprometimento do host via contêiner; acesso irrestrito ao FS | Patch disponível; requer reinicialização |
-| `CVE-2026-23268` · CrackArmor #1 | AppArmor / LSM | 🟠 ALTO | Bypass de perfil de segurança | Neutraliza confinamento de processos; cadeia de ataque facilitada | Em avaliação; sem patch definitivo |
-| `CVE-2026-23269` · CrackArmor #2 | AppArmor / user namespace | 🟠 ALTO | Bypass via namespace transition | Acesso root em ambientes com contêineres multi-serviço | Em avaliação; mitigação via sysctl |
-| `CVE-2026-0914` · nftables UAF | Netfilter / nftables firewall | 🔴 CRÍTICO | Use-after-free → root local | Compromete o subsistema de firewall; bypass total de regras | Patch pendente para distros LTS |
-| `CVE-2026-1248` · OverlayFS Escape | OverlayFS / filesystems | 🟠 ALTO | Escape de contêiner + leitura host | Vazamento de arquivos sensíveis do host a partir de contêiner | Patch disponível; requer update de kernel |
-| `CVE-2026-2991` · CIFS OOB | CIFS / SMB client kernel | 🟠 ALTO | Out-of-bounds read/write; DoS | Servidores Samba/CIFS expostos a ataques remotos | Patch parcial; servidores de arquivo em risco |
-| io_uring Privesc _(múltiplas CVEs)_ | io_uring async I/O subsystem | 🔴 CRÍTICO | Escalonamento via operações async | Exploração silenciosa; disponível em kernels modernos | Mitigação: desabilitar para não-root |
-| `CVE-2026-0878` · sudo Heap Overflow | sudo (userspace) | 🟠 ALTO | Heap overflow via argumentos | Qualquer usuário em sudoers pode obter root completo | Patch em sudo >= 1.9.16 |
+# 🔐 Análise mais detalhada de Vulnerabilidades — Servidor Linux Corporativo
 
 ---
 
-## 🛡️ Recomendações Prioritárias
 
-### ⚡ Ações Imediatas (0–72 horas)
+---
+
+## 1. Dirty Frag — CVE-2026-43500
+
+**Subsistema Afetado:** RxRPC / Kernel Networking
+
+**Severidade:** 🔴 CRÍTICO
+
+### Descrição
+
+Dirty Frag é uma vulnerabilidade de escalonamento local de privilégios identificada no subsistema RxRPC do kernel Linux. O problema está relacionado ao gerenciamento incorreto de fragmentos de pacotes armazenados em memória.
+
+Um usuário local sem privilégios pode enviar pacotes especialmente construídos para provocar corrupção de heap dentro do espaço de memória do kernel. Essa corrupção pode ser explorada para modificar estruturas internas do sistema operacional e executar código arbitrário com privilégios de root.
+
+Embora o protocolo RxRPC seja pouco utilizado em ambientes corporativos convencionais, sua simples disponibilidade como módulo carregável do kernel já representa um risco potencial.
+
+### Impacto
+
+* Escalonamento local para root.
+* Instalação de rootkits persistentes.
+* Exfiltração de dados corporativos.
+* Desativação de mecanismos de auditoria.
+* Comprometimento total do servidor.
+
+### Verificação
 
 ```bash
-# 1. Bloquear módulo rxrpc (Dirty Frag)
-$ echo "install rxrpc /bin/false" >> /etc/modprobe.d/blacklist.conf
-$ modprobe -r rxrpc 2>/dev/null; true
+lsmod | grep rxrpc
 
-# 2. Desabilitar user namespaces não privilegiados (Copy Fail + CrackArmor)
-$ sysctl -w kernel.unprivileged_userns_clone=0
-$ echo "kernel.unprivileged_userns_clone=0" >> /etc/sysctl.d/99-security.conf
+modinfo rxrpc
 
-# 3. Desabilitar io_uring para usuários não root
-$ sysctl -w kernel.io_uring_disabled=1
-$ echo "kernel.io_uring_disabled=1" >> /etc/sysctl.d/99-security.conf
-
-# 4. Ativar firewall com política padrão DROP
-$ ufw default deny incoming
-$ ufw default allow outgoing
-$ ufw allow 22/tcp comment "SSH - restringir por IP na próxima etapa"
-$ ufw enable
-
-# 5. Verificar e atualizar sudo
-$ sudo --version
-$ apt-get install --only-upgrade sudo
-
-# 6. Aplicar todas as configurações sysctl imediatamente
-$ sysctl --system
+grep -r "CVE-2026-43500" /var/log/dpkg.log
 ```
 
-### 📅 Ações de Curto Prazo (1–2 semanas)
+### Mitigação
 
-- Implementar **VPN** (WireGuard ou OpenVPN) para acesso remoto seguro de colaboradores
-- Configurar **autenticação por chave SSH** (desabilitar login por senha no `/etc/ssh/sshd_config`)
-- Instalar e configurar **auditd** para rastreamento de eventos privilegiados
-- Implantar **AIDE** ou **Tripwire** para monitoramento de integridade de arquivos
-- Revisar e atualizar todos os perfis AppArmor para modo `enforce`
-- Atualizar kernel para versão com patches de `Copy Fail` e `OverlayFS Escape`
+```bash
+echo "install rxrpc /bin/true" \
+>> /etc/modprobe.d/blacklist-rxrpc.conf
 
-### 📋 Ações Estruturais — Conformidade LGPD
-
-- Redigir e publicar a **Política de Segurança da Informação (PSI)** formal — exigida pelo Art. 46 da LGPD
-- Documentar fluxos de dados pessoais e implementar controles de acesso baseados no **princípio do menor privilégio**
-- Estabelecer processo de **gestão de patches** com SLA máximo de 30 dias para vulnerabilidades críticas
-- Definir **plano de resposta a incidentes** com notificação à ANPD em até 72 horas (Art. 48 LGPD)
-- Realizar **auditorias de segurança periódicas** (mínimo trimestral)
+modprobe -r rxrpc
+```
 
 ---
 
-## 📚 Referências
+## 2. Fragnesia — CVE-2026-46300
 
-- [NVD — National Vulnerability Database](https://nvd.nist.gov/)
-- [Qualys Security Blog](https://blog.qualys.com/vulnerabilities-threat-research)
-- [kernel.org — Linux Kernel Security](https://www.kernel.org/doc/html/latest/security/)
-- [AppArmor Documentation](https://apparmor.net/)
-- [LGPD — Lei nº 13.709/2018](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm)
-- [ANPD — Autoridade Nacional de Proteção de Dados](https://www.gov.br/anpd/)
+**Subsistema Afetado:** Page Cache / Memory Management
+
+**Severidade:** 🔴 CRÍTICO
+
+### Descrição
+
+Fragnesia é uma vulnerabilidade relacionada ao gerenciamento da Page Cache do Linux, responsável por armazenar em memória páginas de arquivos frequentemente acessados.
+
+A falha permite que processos locais realizem modificações arbitrárias em páginas de memória associadas a arquivos privilegiados sem alterar o conteúdo armazenado em disco.
+
+Isso possibilita a modificação temporária de binários críticos como:
+
+* `/usr/bin/sudo`
+* `/usr/bin/passwd`
+* `/usr/sbin/sshd`
+
+Como as alterações ocorrem apenas em memória, soluções tradicionais baseadas em hash de arquivos podem não detectar o comprometimento.
+
+### Impacto
+
+* Escalonamento silencioso de privilégios.
+* Manipulação de binários privilegiados.
+* Persistência avançada em memória.
+* Dificuldade de resposta a incidentes.
+
+### Verificação
+
+```bash
+sha256sum /usr/bin/sudo
+
+cat /proc/$(pgrep sshd)/maps
+
+ausearch -k privesc
+```
+
+### Mitigação
+
+```bash
+sysctl -w kernel.dmesg_restrict=1
+
+sysctl -w kernel.perf_event_paranoid=3
+```
 
 ---
+
+## 3. Copy Fail — CVE-2026-31431
+
+**Subsistema Afetado:** copy_to_user() / Camada de Syscalls
+
+**Severidade:** 🔴 CRÍTICO
+
+### Descrição
+
+Copy Fail explora uma condição de corrida presente nas rotinas de transferência de dados entre o espaço de usuário e o espaço do kernel.
+
+Em circunstâncias específicas, um atacante local consegue provocar corrupção de ponteiros internos utilizados pelo kernel, redirecionando o fluxo de execução para código arbitrário.
+
+Além do escalonamento local de privilégios, a vulnerabilidade também pode ser utilizada para realizar escape de contêineres Docker ou Podman.
+
+### Impacto
+
+* Escalonamento para root.
+* Escape de contêiner.
+* Comprometimento do host.
+* Acesso a volumes compartilhados.
+* Exposição de dados de clientes.
+
+### Verificação
+
+```bash
+uname -r
+
+docker ps
+
+sysctl kernel.unprivileged_userns_clone
+```
+
+### Mitigação
+
+```bash
+sysctl -w kernel.unprivileged_userns_clone=0
+
+apt update
+
+apt dist-upgrade
+```
+
+---
+
+## 4. CrackArmor — Vulnerabilidades no AppArmor
+
+**Subsistema Afetado:** AppArmor (Linux Security Module)
+
+**Severidade:** 🟠 ALTO
+
+### Descrição
+
+CrackArmor representa um conjunto de falhas relacionadas ao mecanismo de controle de acesso AppArmor.
+
+Essas vulnerabilidades permitem contornar políticas de confinamento de processos, reduzindo significativamente a efetividade das proteções implementadas.
+
+Como o AppArmor é utilizado para restringir processos, serviços e contêineres, sua quebra pode facilitar ataques em cadeia.
+
+### Impacto
+
+* Bypass de políticas de segurança.
+* Acesso indevido a arquivos restritos.
+* Escalonamento indireto de privilégios.
+* Redução da eficácia do hardening do sistema.
+
+### Verificação
+
+```bash
+aa-status
+
+apparmor_parser --version
+
+grep DENIED /var/log/kern.log
+```
+
+### Mitigação
+
+```bash
+apt install --only-upgrade apparmor
+
+aa-enforce /etc/apparmor.d/*
+```
+
+---
+
+## 5. nftables Use-After-Free
+
+**CVE:** CVE-2026-0914
+
+**Severidade:** 🔴 CRÍTICO
+
+### Descrição
+
+A vulnerabilidade afeta o framework nftables utilizado para implementação de regras de firewall no Linux.
+
+O erro ocorre devido ao uso de estruturas de memória já liberadas (Use-After-Free), permitindo corrupção de memória do kernel.
+
+Um invasor local pode utilizar a falha para obter privilégios elevados ou comprometer completamente o mecanismo de filtragem de pacotes.
+
+### Impacto
+
+* Escalonamento para root.
+* Bypass de firewall.
+* Movimentação lateral.
+* Comprometimento da segmentação de rede.
+
+### Verificação
+
+```bash
+systemctl status nftables
+
+nft list ruleset
+```
+
+### Mitigação
+
+```bash
+apt update
+
+apt full-upgrade
+
+reboot
+```
+
+---
+
+## 6. OverlayFS Escape
+
+**CVE:** CVE-2026-1248
+
+**Severidade:** 🟠 ALTO
+
+### Descrição
+
+OverlayFS é amplamente utilizado por Docker, Kubernetes e Podman.
+
+A vulnerabilidade permite que um processo dentro de um contêiner interaja incorretamente com camadas do sistema de arquivos, obtendo acesso a informações pertencentes ao host.
+
+### Impacto
+
+* Escape de contêiner.
+* Leitura de arquivos do host.
+* Vazamento de credenciais.
+* Comprometimento de ambientes multi-tenant.
+
+### Verificação
+
+```bash
+mount | grep overlay
+
+docker ps
+```
+
+### Mitigação
+
+```bash
+apt update
+
+apt dist-upgrade
+```
+
+---
+
+## 7. CIFS Out-of-Bounds
+
+**CVE:** CVE-2026-2991
+
+**Severidade:** 🟠 ALTO
+
+### Descrição
+
+Afeta o cliente SMB/CIFS do kernel Linux.
+
+Pacotes SMB especialmente manipulados podem causar acessos fora dos limites válidos de memória, provocando corrupção de memória, vazamento de informações ou interrupção dos serviços.
+
+### Impacto
+
+* Corrupção de memória.
+* Vazamento de dados.
+* Negação de serviço.
+* Interrupção de compartilhamentos corporativos.
+
+### Verificação
+
+```bash
+mount | grep cifs
+
+lsmod | grep cifs
+
+ss -ant | grep 445
+```
+
+### Mitigação
+
+```bash
+apt update
+
+apt full-upgrade
+```
+
+---
+
+## 8. io_uring Privilege Escalation
+
+**Severidade:** 🔴 CRÍTICO
+
+### Descrição
+
+O subsistema io_uring foi desenvolvido para operações assíncronas de alta performance.
+
+Devido à sua complexidade e interação direta com o kernel, tornou-se alvo recorrente de pesquisas de segurança e vulnerabilidades de escalonamento de privilégios.
+
+### Impacto
+
+* Escalonamento local.
+* Execução arbitrária de código.
+* Persistência avançada.
+
+### Mitigação
+
+```bash
+sysctl -w kernel.io_uring_disabled=1
+```
+
+---
+
+## 9. sudo Heap Overflow
+
+**CVE:** CVE-2026-0878
+
+**Severidade:** 🟠 ALTO
+
+### Descrição
+
+A vulnerabilidade afeta o utilitário sudo, utilizado para execução de comandos administrativos.
+
+Em determinadas versões, falhas de gerenciamento de memória podem permitir a obtenção de privilégios elevados por usuários já autorizados a utilizar o sudo.
+
+### Impacto
+
+* Escalonamento para root.
+* Comprometimento administrativo.
+* Bypass de controles internos.
+
+### Verificação
+
+```bash
+sudo --version
+
+dpkg -l sudo
+```
+
+### Mitigação
+
+```bash
+apt install --only-upgrade sudo
+```
+
+---
+
+# ⚠️ Vulnerabilidades Operacionais
+
+## Exposição de Serviços à Internet
+
+### Descrição
+
+Serviços expostos diretamente à Internet aumentam significativamente a superfície de ataque. Portas abertas desnecessariamente podem ser identificadas por mecanismos automatizados de varredura e exploradas por agentes maliciosos.
+
+### Verificação
+
+```bash
+ss -tulnp
+
+ufw status verbose
+```
+
+### Mitigação
+
+```bash
+ufw default deny incoming
+```
+
+---
+
+## Acesso Remoto Inseguro
+
+### Descrição
+
+A ausência de VPN ou de canais criptografados adequados expõe credenciais corporativas e dados sensíveis durante conexões remotas.
+
+### Mitigação
+
+* Implementação de VPN.
+* MFA para acesso remoto.
+* Restrição geográfica de acesso.
+
+---
+
+## Configuração Insegura do SSH
+
+### Descrição
+
+Configurações inadequadas do SSH podem facilitar ataques de força bruta, reutilização de credenciais e comprometimento remoto.
+
+### Mitigação
+
+```bash
+PasswordAuthentication no
+
+PermitRootLogin no
+
+apt install fail2ban
+```
+
+---
+
+## Softwares Desatualizados
+
+### Descrição
+
+A falta de atualizações regulares permite a exploração de vulnerabilidades amplamente conhecidas e frequentemente automatizadas.
+
+### Mitigação
+
+```bash
+apt update
+
+apt upgrade -y
+```
+
+---
+
+## Falhas no Gerenciamento de Permissões
+
+### Descrição
+
+Permissões excessivas em arquivos, diretórios ou contas de usuário aumentam significativamente o risco de escalonamento de privilégios e acesso indevido a informações corporativas.
+
+### Verificação
+
+```bash
+find / -perm -4000 2>/dev/null
+
+find / -type f -perm -777 2>/dev/null
+```
+
+### Mitigação
+
+```bash
+chmod 640 arquivo
+
+chown root:root arquivo
+```
+
+---
+
+# 📊 Tabela Resumo
+
+
+| Vulnerabilidade                                      | Severidade | Tipo de Ataque                     | Impacto Principal                                     |
+| ---------------------------------------------------- | ---------- | ---------------------------------- | ----------------------------------------------------- |
+| Dirty Frag (CVE-2026-43500)                          | 🔴 CRÍTICO | Escalonamento local de privilégios | Comprometimento total do host                         |
+| Fragnesia (CVE-2026-46300)                           | 🔴 CRÍTICO | Escrita arbitrária em memória      | Modificação invisível de binários privilegiados       |
+| Copy Fail (CVE-2026-31431)                           | 🔴 CRÍTICO | Race Condition + LPE               | Root local e escape de contêiner                      |
+| CrackArmor (CVE-2026-23268)                          | 🟠 ALTO    | Bypass de perfil AppArmor          | Escalonamento de privilégios                          |
+| CrackArmor (CVE-2026-23269)                          | 🟠 ALTO    | Namespace Escape                   | Contorno de políticas de segurança                    |
+| nftables UAF (CVE-2026-0914)                         | 🔴 CRÍTICO | Use-After-Free                     | Root local e bypass de firewall                       |
+| OverlayFS Escape (CVE-2026-1248)                     | 🟠 ALTO    | Escape de contêiner                | Acesso ao host a partir do contêiner                  |
+| CIFS OOB (CVE-2026-2991)                             | 🟠 ALTO    | Out-of-Bounds Read/Write           | Corrupção de memória e DoS                            |
+| io_uring Privilege Escalation                        | 🔴 CRÍTICO | Escalonamento local                | Execução arbitrária no kernel                         |
+| sudo Heap Overflow (CVE-2026-0878)                   | 🟠 ALTO    | Heap Overflow                      | Escalonamento para root                               |
+| Exposição de Serviços à Internet                     | 🟠 ALTO    | Superfície de ataque excessiva     | Exploração remota de serviços                         |
+| Acesso Remoto Inseguro                               | 🟠 ALTO    | Interceptação de tráfego           | Roubo de credenciais                                  |
+| Configuração Insegura do SSH                         | 🟠 ALTO    | Força bruta / Credential Stuffing  | Acesso não autorizado                                 |
+| Falta de Controle de Tráfego                         | 🔴 CRÍTICO | Exposição de rede                  | Movimentação lateral e exploração externa             |
+| Softwares Desatualizados                             | 🔴 CRÍTICO | Exploração de CVEs conhecidas      | Comprometimento remoto do servidor                    |
+| Falhas no Gerenciamento de Permissões                | 🟠 ALTO    | Escalonamento interno              | Acesso indevido a dados corporativos                  |
+| Ausência de Monitoramento de Logs                    | 🟡 MÉDIO   | Falha de detecção                  | Ataques podem permanecer ocultos                      |
+| Ausência de Auditoria de Integridade (AIDE/Tripwire) | 🟡 MÉDIO   | Falha de monitoramento             | Alterações não autorizadas podem passar despercebidas |
+| Backups sem Proteção ou Criptografia                 | 🟡 MÉDIO   | Exposição de dados                 | Vazamento ou destruição de informações críticas       |
+| Documentação e Gestão de Patches Inexistente         | 🟢 BAIXO   | Falha de governança                | Aumento gradual do risco operacional                  |
+
+
+---
+
+# 📚 Referências
+
+* NVD (National Vulnerability Database)
+* Linux Kernel Security Documentation
+* AppArmor Documentation
+* OWASP Linux Security Guide
+* CIS Benchmarks for Linux
+* ANPD (Autoridade Nacional de Proteção de Dados)
+* LGPD (Lei nº 13.709/2018)
+
+
